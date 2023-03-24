@@ -83,7 +83,6 @@ namespace DOTSHelper
                     get
                     {
                         if (!_isCreated) { throw new System.AccessViolationException("Native1DArray:Not Create, Create first"); }
-                        if (_isLocked)   { throw new System.AccessViolationException("Native1DArray:Had locked, Unlock first"); }
 
                         if (index >= _size || index < 0)
                         {
