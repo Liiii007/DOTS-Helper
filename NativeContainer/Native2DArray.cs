@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
-namespace DOTS
+namespace DOTSHelper
 {
     namespace CustomContainer
     {
