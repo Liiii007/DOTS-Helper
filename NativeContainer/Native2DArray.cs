@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -9,7 +10,7 @@ namespace DOTSHelper
         namespace Unsafe
         {
             /// <summary>
-            /// A 2D Array, can be used inside a DOTS->ComponentData or separately.
+            /// A native 2D array, build with Native1DArray
             /// </summary>
             /// <typeparam name="T">A unmanaged type.</typeparam>
             public unsafe struct Native2DArray<T> : System.IDisposable where T : unmanaged
@@ -17,156 +18,92 @@ namespace DOTSHelper
                 const int defaultAlignment = 8;
 
                 [NativeDisableUnsafePtrRestriction]
-                readonly T** m_1DPtr;
-                [NativeDisableUnsafePtrRestriction]
-                readonly int* m_ysize;
-                readonly int m_xsize;
-                readonly bool m_isCreate;
-                readonly Allocator m_AllocatorLabel;
-                bool m_isLocked;
+                Native1DArray<T>* _nativePtr;
+                int               _size;
+                bool              _isCreated;
+                bool              _isLocked;
+                Allocator         _allocator;
 
-                //Init
-                public Native2DArray(int xsize, int ysize, Allocator allocator, T data = default, int alignment = defaultAlignment)
+                public Native2DArray(int size, int colSize, Allocator allocator, int alignment = defaultAlignment, bool clearFlag = true, T data = default)
                 {
-                    m_isLocked = false;
-                    m_AllocatorLabel = allocator;
+                    _allocator = allocator;
+                    _isLocked = false;
+                    
+                    _size = size;
 
-                    m_xsize = xsize;
-                    m_ysize = (int*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<int>() * xsize, 8, allocator);
-
-                    m_1DPtr = (T**)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * xsize, alignment, allocator);
-                    for (int i = 0; i < xsize; i++)
+                    _nativePtr = (Native1DArray<T>*)UnsafeUtility.Malloc(sizeof(Native1DArray<T>*) * size, alignment, allocator);
+                    for (int i = 0; i < size; i++)
                     {
-                        m_ysize[i] = xsize;
-                        m_1DPtr[i] = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * ysize, alignment, allocator);
-
-                        for (int j = 0; j < ysize; j++)
+                        _nativePtr[i]   = new Native1DArray<T>(colSize, allocator);
+                        for (int j = 0; j < colSize && clearFlag; j++)
                         {
-                            m_1DPtr[i][j] = data;
+                            _nativePtr[i][j] = data;
                         }
                     }
 
-                    m_isCreate = true;
+                    _isCreated = true;
                 }
-                public Native2DArray(int xsize, Allocator allocator, T data = default, int alignment = defaultAlignment)
+                public Native2DArray(List<List<T>> list,    Allocator allocator, int alignment = defaultAlignment)
                 {
-                    this = new(xsize, xsize, allocator, data, alignment);
+                    if (list == null) throw new System.ArgumentNullException("Native2DArray:List is null");
+
+                    _size      = list.Count;
+                    _isLocked  = true;
+                    _allocator = allocator;
+
+                    _nativePtr = (Native1DArray<T>*)UnsafeUtility.Malloc(sizeof(Native1DArray<T>) * list.Count, alignment, allocator);
+                    for (int i = 0; i < list.Count; i++) _nativePtr[i] = new(list[i], allocator);
+
+                    _isCreated = true;
                 }
-                public Native2DArray(List<List<T>> list, Allocator label, T data = default, int alignment = defaultAlignment)
+                public Native2DArray(T[][] array,           Allocator allocator, int alignment = defaultAlignment)
                 {
-                    if (list == null)
-                    {
-                        throw new System.ArgumentNullException("Native2DArray:List is null");
-                    }
+                    if (array == null) throw new System.ArgumentNullException("Native2DArray:Array is null");
 
-                    m_isLocked = false;
-                    m_AllocatorLabel = label;
+                    _size      = array.Length;
+                    _isLocked  = false;
+                    _allocator = allocator;
 
-                    m_xsize = list.Count;
-                    m_ysize = (int*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<int>() * list.Count, 8, label);
+                    _nativePtr = (Native1DArray<T>*)UnsafeUtility.Malloc(sizeof(Native1DArray<T>*) * array.Length, alignment, allocator);
+                    for (int i = 0; i < array.Length; i++) _nativePtr[i] = new(array[i], allocator);
 
-                    m_1DPtr = (T**)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * list.Count, alignment, label);
-                    for (int i = 0; i < list.Count; i++)
-                    {
-                        m_ysize[i] = list[i].Count;
-                        m_1DPtr[i] = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * list[i].Count, alignment, label);
-                        for (int j = 0; j < list[i].Count; j++)
-                        {
-                            m_1DPtr[i][j] = list[i][j];
-                        }
-                    }
-
-                    m_isCreate = true;
-                }
-                public Native2DArray(T[][] array, Allocator label, int alignment = defaultAlignment)
-                {
-                    if (array == null)
-                    {
-                        throw new System.ArgumentNullException("Native2DArray:Array is null");
-                    }
-
-                    m_isLocked = false;
-                    m_AllocatorLabel = label;
-
-                    m_xsize = array.Length;
-                    m_ysize = (int*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<int>() * array.Length, 8, label);
-
-                    m_1DPtr = (T**)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * array.Length, alignment, label);
-                    for (int i = 0; i < array.Length; i++)
-                    {
-                        m_ysize[i] = array[i].Length;
-                        m_1DPtr[i] = (T*)UnsafeUtility.Malloc(UnsafeUtility.SizeOf<T>() * array[i].Length, alignment, label);
-                        for (int j = 0; j < array[i].Length; j++)
-                        {
-                            m_1DPtr[i][j] = array[i][j];
-                        }
-                    }
-
-                    m_isCreate = true;
-                }
-                public bool IsCreate
-                {
-                    get => m_isCreate;
+                    _isCreated = true;
                 }
 
-                //Data Get&Set
-                public T Get(int x, int y)
+                public ref Native1DArray<T> this[int index]
                 {
-                    if (x >= m_xsize || y >= m_ysize[x])
+                    get
                     {
-                        throw new System.ArgumentNullException("Native2DArray:Index out of range");
-                    }
-                    else
-                    {
-                        return m_1DPtr[x][y];
+                        if (!_isCreated)     throw new System.AccessViolationException("Native2DArray:Not Create, Create first");
+                        if (!InRange(index)) throw new System.IndexOutOfRangeException("Native2DArray:Index out of range");
+                        
+                        return ref _nativePtr[index];
                     }
                 }
-                public bool Set(int x, int y, T data)
+                
+                public bool WriteLock
                 {
-                    if (m_isLocked)
-                    {
-                        throw new System.AccessViolationException("Native2DArray:Had locked,please unlock first");
-                    }
-
-                    if (x >= m_xsize || y >= m_ysize[x])
-                    {
-                        throw new System.ArgumentNullException("Native2DArray:Index out of range");
-                    }
-                    else
-                    {
-                        m_1DPtr[x][y] = data;
-                        return true;
-                    }
+                    get => _isLocked;
+                    set => _isLocked = value;
                 }
-
-                //WriteLocker
-                public void WriteLock()
-                {
-                    m_isLocked = true;
-                }
-                public void WriteUnlock()
-                {
-                    m_isLocked = false;
-                }
-
-                //Size Counter
-                public int Count()
-                {
-                    return m_xsize;
-                }
-                public int Count(int x)
-                {
-                    return m_ysize[x];
-                }
+                public bool IsCreate => _isCreated;
+                public int  Length   => _size;
+                public int  Count    => _size;
+                public bool InRange(int index) => 0 <= index && index < _size;
 
                 public void Dispose()
                 {
-                    for (int i = 0; i < m_xsize; i++)
-                    {
-                        UnsafeUtility.Free(m_1DPtr[i], m_AllocatorLabel);
-                    }
-                    UnsafeUtility.Free(m_1DPtr, m_AllocatorLabel);
-                    UnsafeUtility.Free(m_ysize, m_AllocatorLabel);
+                    if (!_isCreated) 
+                        return;
+                    
+                    for (int i = 0; i < _size; i++) 
+                        _nativePtr[i].Dispose();
+                    
+                    UnsafeUtility.Free(_nativePtr, _allocator);
+
+                    _isCreated = false;
+                    _size = 0;
+                    _isLocked = false;
                 }
             }
         }
