@@ -1,5 +1,6 @@
-using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
@@ -13,6 +14,8 @@ namespace DOTSHelper
             /// A native 1D array, can be used inside DOTS->ComponentData or separately.
             /// </summary>
             /// <typeparam name="T">A unmanaged type.</typeparam>
+            [StructLayout(LayoutKind.Sequential)]
+            [NativeContainer]
             public unsafe struct Native1DArray<T> : System.IDisposable where T : unmanaged
             {
                 const int defaultAlignment = 8;
@@ -27,7 +30,7 @@ namespace DOTSHelper
                 public Native1DArray(int size,     Allocator allocator, int alignment = defaultAlignment, bool locked = false, bool clearFlag = true)
                 {
                     if (size < 0) throw new System.ArgumentOutOfRangeException("Native1DArray:Size cannot < 0");
-
+                    
                     _allocator = allocator;
                     _size   = size;
                     _nativePtr  = (T*)UnsafeUtility.Malloc(sizeof(T) * size, alignment, allocator);
@@ -66,7 +69,9 @@ namespace DOTSHelper
 
                 public bool WriteLock
                 {
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     get => _isLocked;
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     set => _isLocked = value;
                 }
                 public bool IsCreate => _isCreated;
@@ -76,6 +81,7 @@ namespace DOTSHelper
                 
                 public T this[int index]
                 {
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     get
                     {
                         if (!_isCreated)     throw new System.AccessViolationException("Native1DArray:Not Create, Create first");
@@ -83,6 +89,7 @@ namespace DOTSHelper
 
                         return _nativePtr[index];
                     }
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     set
                     {
                         if (!_isCreated)     throw new System.AccessViolationException("Native1DArray:Not create");
