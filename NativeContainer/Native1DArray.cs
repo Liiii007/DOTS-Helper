@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Mathematics;
+using UnityEngine;
 
 namespace DOTSHelper
 {
@@ -14,8 +16,6 @@ namespace DOTSHelper
             /// A native 1D array, can be used inside DOTS->ComponentData or separately.
             /// </summary>
             /// <typeparam name="T">A unmanaged type.</typeparam>
-            [StructLayout(LayoutKind.Sequential)]
-            [NativeContainer]
             public unsafe struct Native1DArray<T> : System.IDisposable where T : unmanaged
             {
                 const int defaultAlignment = 8;
@@ -156,6 +156,14 @@ namespace DOTSHelper
                 public void Slice(int start, int end)
                 {
                     throw new System.NotImplementedException();
+                }
+
+                public static NativeArray<Vector3> ToNativeVector3Array(in Native1DArray<float3> array, Allocator allocator = Allocator.TempJob)
+                {
+                    NativeArray<Vector3> nativeArray = new(array.Length, allocator);
+                    UnsafeUtility.MemCpy(nativeArray.GetUnsafeReadOnlyPtr(), array._nativePtr, sizeof(Vector3) * array.Length);
+                    
+                    return nativeArray;
                 }
             }
         }
